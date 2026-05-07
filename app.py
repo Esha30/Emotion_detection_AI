@@ -124,14 +124,14 @@ if input_image:
     col_a, col_b = st.columns(2)
 
     with col_a:
-        st.image(input_image, caption="Input Image", use_container_width=True)
+        st.image(input_image, caption="Input Image", width='stretch')
 
     with st.spinner("🔍 Analyzing emotion..."):
         results, output_img, fallback = predict_emotion(input_image)
 
     with col_b:
         caption = "Detected Emotion" if not fallback else "Detected Emotion (full image used)"
-        st.image(output_img, caption=caption, use_container_width=True)
+        st.image(output_img, caption=caption, width='stretch')
 
     if results:
         st.divider()
