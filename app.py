@@ -41,13 +41,44 @@ face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 )
 
+def detect_faces(gray):
+    """Try multiple parameter sets to detect faces robustly."""
+    # Attempt 1: standard
+    faces = face_cascade.detectMultiScale(
+        gray, scaleFactor=1.1, minNeighbors=4, minSize=(30, 30)
+    )
+    if len(faces) > 0:
+        return faces
+
+    # Attempt 2: more relaxed
+    faces = face_cascade.detectMultiScale(
+        gray, scaleFactor=1.05, minNeighbors=2, minSize=(20, 20)
+    )
+    if len(faces) > 0:
+        return faces
+
+    # Attempt 3: very relaxed
+    faces = face_cascade.detectMultiScale(
+        gray, scaleFactor=1.03, minNeighbors=1, minSize=(15, 15)
+    )
+    return faces
+
 def predict_emotion(image):
+    # Convert to RGB numpy array
     img_array = np.array(image.convert('RGB'))
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
+
+    # Enhance contrast for better detection
+    gray_eq = cv2.equalizeHist(gray)
+
+    faces = detect_faces(gray_eq)
+    fallback = False
 
     if len(faces) == 0:
-        return None, img_array, "No face detected in the image. Try a clearer front-facing photo."
+        # Fallback: treat the entire image as a face
+        h, w = gray.shape
+        faces = np.array([[0, 0, w, h]])
+        fallback = True
 
     results = []
     for (x, y, w, h) in faces:
@@ -58,13 +89,17 @@ def predict_emotion(image):
         label = classes[np.argmax(prediction)]
         confidence = float(np.max(prediction)) * 100
 
-        # Draw bounding box and label on image
-        cv2.rectangle(img_array, (x, y), (x+w, y+h), (0, 220, 100), 2)
-        cv2.putText(img_array, f"{label} ({confidence:.1f}%)", (x, y - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 220, 100), 2)
+        if not fallback:
+            # Draw bounding box and label on image
+            cv2.rectangle(img_array, (x, y), (x+w, y+h), (0, 220, 100), 2)
+            cv2.putText(
+                img_array, f"{label} ({confidence:.1f}%)",
+                (x, max(y - 10, 10)),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 220, 100), 2
+            )
         results.append((label, confidence))
 
-    return results, img_array, None
+    return results, img_array, fallback
 
 # --- Upload Section ---
 col1, col2 = st.columns(2)
@@ -89,19 +124,19 @@ if input_image:
     col_a, col_b = st.columns(2)
 
     with col_a:
-        st.image(input_image, caption="Input Image", use_column_width=True)
+        st.image(input_image, caption="Input Image", use_container_width=True)
 
     with st.spinner("🔍 Analyzing emotion..."):
-        results, output_img, error = predict_emotion(input_image)
+        results, output_img, fallback = predict_emotion(input_image)
 
     with col_b:
-        if error:
-            st.warning(f"⚠️ {error}")
-        else:
-            st.image(output_img, caption="Detected Emotion", use_column_width=True)
+        caption = "Detected Emotion" if not fallback else "Detected Emotion (full image used)"
+        st.image(output_img, caption=caption, use_container_width=True)
 
-    if results and not error:
+    if results:
         st.divider()
+        if fallback:
+            st.info("ℹ️ Face not clearly detected — analyzed full image for emotion.")
         st.subheader("📊 Results")
         cols = st.columns(len(results))
         for i, (label, confidence) in enumerate(results):
