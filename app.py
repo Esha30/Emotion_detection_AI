@@ -208,8 +208,7 @@ if input_image:
         st.divider()
         buf = io.BytesIO()
         Image.fromarray(output_img).save(buf, format="PNG")
-        buf.seek(0)
-        st.download_button(label="⬇️ Download Result Image", data=buf, file_name="emotion_result.png", mime="image/png")
+        st.download_button(label="⬇️ Download Result Image", data=buf.getvalue(), file_name="emotion_result.png", mime="image/png")
 
         # History
         for label, confidence in results:
